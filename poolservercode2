@@ -99,7 +99,7 @@ public class PartialHTTP1Server extends Thread{
                                 System.out.println("Accepted connection from " + clientSocket.getRemoteSocketAddress());
 
 				threadPool = new ThreadPoolExecutor(5, 50, 5000, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(1));
-				threadPool.execute(new ClientHandler());
+				threadPool.execute(new ClientHandler(clientSocket));
                         }catch(SockeetTimeoutException te){
                                 //
                         }catch(IOException ioe){
