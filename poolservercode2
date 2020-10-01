@@ -11,6 +11,9 @@ import java.util.concurrent.Executors;
 
 
 public class PartialHTTP1Server extends Thread{
+
+	ExecutorService threadPool = null;
+	
         public static class ClientHandler implements Runnable{
                 private final Socket clientSocket;
 
@@ -66,6 +69,7 @@ public class PartialHTTP1Server extends Thread{
                 }
 
                 final PartialHTTP1Server server = new PartialHTTP1Server(port);
+		
 
 		//server.start();
 
@@ -94,8 +98,8 @@ public class PartialHTTP1Server extends Thread{
                                 final Socket clientSocket = this.listenSocket.accept();
                                 System.out.println("Accepted connection from " + clientSocket.getRemote>
 
-				ExecutorService threadPool = new ThreadPoolExecutor(5, 50, 5000, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(1));
-
+				threadPool = new ThreadPoolExecutor(5, 50, 5000, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(1));
+				threadPool.execute(new ClientHandler());
                         }catch(SockeetTimeoutException te){
                                 //
                         }catch(IOException ioe){
