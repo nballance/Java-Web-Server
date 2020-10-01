@@ -41,7 +41,7 @@ public class PartialHTTP1Server extends Thread{
                                         userOutput.close();
                                 }
                                 this.clientSocket.close();
-                                System.err.println("Lost connection to " + this.clientSocket.getRemoteS>
+                                System.err.println("Lost connection to " + this.clientSocket.getRemoteSocketAddress());
                         }catch(IOException ioe2){
                                 // Ignored
                         }
