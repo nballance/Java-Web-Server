@@ -1,0 +1,144 @@
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class PartialHTTP1Server extends Thread{
+	public static class ClientHandler implements Runnable{
+		private final Socket clientSocket;
+
+		public ClientHandler(final Socket socket){
+			this.clientSocket = socket;
+		}
+
+		@Override
+		public void run(){
+			Buffered Reader userInput = null;
+			DataOutputStream userOutput = null;
+
+			try{
+				userInput = new BufferedReader(new InputStreamReader(
+						this.clientSocket.getInputStream()));
+				userOutput = new DataOutputStream(this.clientSocket.getOutputStream());
+				while(true){
+					//read and reply to user
+				}
+			}catch(IOException ioe){
+				userInput.close();
+				userOutput.close();
+				this.clientSocket.close();
+			}try{
+				if(userInput != null){
+					userInput.close();
+				}if(userOutput != null){
+					userOutput.close();
+				}
+				this.clientSocket.close();
+				System.err.println("Lost connection to " + this.clientSocket.getRemoteSocketAddress());
+			}catch(IOException ioe2){
+				// Ignored
+			}
+		}
+	}
+
+	public static void main(String[] args){
+		if(args.length < 1){
+			// give user error message
+			System.exit(1);
+		}
+		int port = -1;
+		try{
+			port = Integer.parseInt(args[0]);
+		}catch(NumberFormatException nfe){
+			// give user error message
+			System.exit(1);
+		}
+		if(port <= 0 || port > 65536){
+			// give user error message
+			System.exit(1);
+		}
+
+		final PartialHTTP1Server server = new PartialHTTP1Server(port);
+		server.start();
+
+		try{
+			server.join();
+			System.out.println("Completed shutdown...");
+		}catch(InterruptedException e){
+			System.err.println("Interrupted bedore accept thread completed.");
+			System.exit(1);
+		}
+	}
+	private static void printUsage(){
+		System.err.println("Echo server requires 1 argument: <Listen Port>");
+	}
+
+	private final ExecutorService workers = Executors.newCachedThreadPool(); // 50 goes as argument
+
+	private ServerSocket listenSocket;
+
+	public PartialHTTP1Server(final int port){
+		Runtime.getRuntime().addShutdownHook(new Thread() {
+			@Overried
+			public void run(){
+				PartialHTTP1Server.this.shutdown();
+			}
+		});
+
+		try{
+			this.listenSocket = new ServerSocket(port);
+		}catch(IOException e){
+			System.err.println();
+			e.printStackTrace();
+			System.exit(1);
+		}
+	}
+
+	@Override
+	public void run(){
+		try{
+			this.listenSocket.setSoTimeout(5000); // will change the arguement
+		}catch(SocketException e1){
+			System.err.println();
+		}
+
+		System.out.println();
+
+		while(true){
+			try{
+				final Socket clientSocket = this.listenSocket.accept();
+				System.out.println("Accepted connection from " + clientSocket.getRemoteSocketAddress());
+
+				ClientHandler handler = new ClientHandler(clientSocket);
+				this.workers.execute(handler);
+
+			}catch(SockeetTimeoutException te){
+				//
+			}catch(IOException ioe){
+				System.err.println(); // print something
+				Thread.yield();
+			}
+		}try{
+			this.listenSocket.close();
+		}catch(IOException ioe){
+			//
+		}System.out.println("Stopped accepting incoming connections.");
+	}
+
+	public vid shutdown(){
+		System.out.println("Shutting down the server...");
+		this.workers.shutdwnNow();
+		try{
+			this.join();
+		}catch(InterruptedException e){
+			//
+		}
+	}
+
+}
