@@ -38,12 +38,12 @@ public class PartialHTTP1Server {
 
                         }
 
-                System.out.println("Stopping Accept...");
+                        System.out.println("Stopping Accept...");
 
-                // close connection
-                socket.close();
-                din.close();
-                dos.close();
+                        // close connection
+                        socket.close();
+                        din.close();
+                        dos.close();
 
                 }catch(IOException i){
                         System.out.println(i);
