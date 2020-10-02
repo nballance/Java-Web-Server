@@ -21,6 +21,8 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.TimeZone;
 import java.nio.file.Files;
+import java.util.Scanner;
+
 public class PartialHTTP1Server{
 
 	public static void main(String[] args){
@@ -239,10 +241,14 @@ public class PartialHTTP1Server{
 				"Content-Encoding: identity\r\n" +
 				"Allow: GET, POST, HEAD\r\n"  +
 				"Expires: Sat, 21 Jul 2021 11:00:00 GMT\r\n";
+
 		if(sendPayload){
 			try{
-			byte[] fileContent = readFileToByteArray(file);
-			response += "\r\n" + fileContent;
+				//BufferedReader br = new BufferedReader(new FileREader(file));
+				//String st;
+				Scanner sc = new Scanner(file);
+				sc.useDelimiter("\\Z");
+				response += "\r\n" + sc.next();
 			}catch(IOException ioe){
 				//
 			}
