@@ -34,6 +34,9 @@ public class PartialHTTP1Server extends Thread{
 						this.clientSocket.getInputStream()));
 				userOutput = new DataOutputStream(this.clientSocket.getOutputStream());
 				while(true){
+					System.out.println("while connection with " + clientSocket.getRemoteSocketAddress());
+
+					System.out.println("Reached run while loop");
 					//read and reply to user
 				}
 			}catch(IOException ioe){
