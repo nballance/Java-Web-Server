@@ -1,4 +1,5 @@
 import java.io.BufferedReader;
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -13,124 +14,118 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 
-public class PartialHTTP1Server extends Thread{
 
-	ExecutorService threadPool = null;
+public class PartialHTTP1Server{
 
-	public static class ClientHandler implements Runnable{
-		private final Socket clientSocket;
-
-		public ClientHandler(final Socket socket){
-			this.clientSocket = socket;
-		}
-
-		@Override
-		public void run(){
-			BufferedReader userInput = null;
-			DataOutputStream userOutput = null;
-
-			try{
-				userInput = new BufferedReader(new InputStreamReader(
-						this.clientSocket.getInputStream()));
-				userOutput = new DataOutputStream(this.clientSocket.getOutputStream());
-				System.out.println(userInput.toString());
-				System.out.println(userInput.lines());
-				
-				/*while(true){
-
-					System.out.println("while connection with " + clientSocket.getRemoteSocketAddress());
-
-					System.out.println("Reached run while loop");
-					//read and reply to user
-				}*/
-			}catch(IOException ioe){
-				try {
-					userInput.close();
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				try {
-					userOutput.close();
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				try {
-					this.clientSocket.close();
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}try{
-				if(userInput != null){
-					userInput.close();
-				}if(userOutput != null){
-					userOutput.close();
-				}
-				this.clientSocket.close();
-				System.err.println("Lost connection to " + this.clientSocket.getRemoteSocketAddress());
-			}catch(IOException ioe2){
-				// Ignored
-			}
-		}
-	}
-
+	
 	public static void main(String[] args){
+		
 		if(args.length < 1){
 			// give user error message
 			System.exit(1);
 		}
+		
+		Socket socket = null;
+		ServerSocket server = null;
+		DataInputStream dis = null;
+		DataOutputStream dos = null;
+		
 		int port = -1;
+		
 		try{
 			port = Integer.parseInt(args[0]);
 		}catch(NumberFormatException nfe){
-			// give user error message
+			System.err.print("Integer values only");
 			System.exit(1);
 		}
 		if(port <= 0 || port > 65536){
-			// give user error message
+			System.err.print("Integer out of bounds");
 			System.exit(1);
 		}
 
-		final PartialHTTP1Server server = new PartialHTTP1Server(port);
-
-		//server.start();
 		
-	}
-	private static void printUsage(){
-		System.err.println("Echo server requires 1 argument: <Listen Port>");
-	}
-
-	private ServerSocket listenSocket;
-
-	public PartialHTTP1Server(final int port){
-
-
-
-		try{
-			this.listenSocket = new ServerSocket(port);
-		}catch(IOException e){
-			System.err.println();
-			e.printStackTrace();
-			System.exit(1);
-		}
-
-		while(true){
-			try{
-				final Socket clientSocket = this.listenSocket.accept();
-				//if(connected = false){ setsocket timeout} else {
+		try {
+			server = new ServerSocket(port);
 			
-				System.out.println("Accepted connection from " + clientSocket.getRemoteSocketAddress());
+			System.out.println("Server started");
+			System.out.println("Waiting for a client ...");
+
+			ExecutorService threadPool = null;
+
+			while(true) {
+				socket = server.accept();
+				
+				System.out.println("Client accepted");
+				
+				// setting input and output streams
+				dis = new DataInputStream(socket.getInputStream());
+				dos = new DataOutputStream(socket.getOutputStream());
 
 				threadPool = new ThreadPoolExecutor(5, 50, 5000, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(1));
-				threadPool.execute(new ClientHandler(clientSocket));
-			}catch(SocketTimeoutException te){
-				//
+				threadPool.execute(new ClientHandler(socket, dis, dos));
+				
+				
+				
+			}
+		}catch(IOException i) {
+			
+		}
+		
+		
+		//final PartialHTTP1Server server = new PartialHTTP1Server(port);
+
+
+		//server.start();
+
+
+	}
+
+
+	public static class ClientHandler implements Runnable{
+		Socket socket;
+		DataInputStream dis;
+		DataOutputStream dos;
+
+		public ClientHandler(Socket socket, DataInputStream dis, DataOutputStream dos){
+			this.socket = socket;
+			this.dis = dis;
+			this.dos = dos;
+		}
+
+		@Override
+		public void run(){
+			try{
+				BufferedReader userInput = new BufferedReader(new InputStreamReader(dis));
+				
+				String input = userInput.readLine();
+				
+//				String command, resource, http;
+				
+				
+				
+//TODO
+				while(input != "\n\n") {
+					input = userInput.readLine();
+					//check for request format
+				}
+						
+				
+				
 			}catch(IOException ioe){
-				System.err.println(); // print something
-				Thread.yield();
+				System.err.println("BufferedReader fail");
+			}
+			
+			try{
+				this.dis.close();
+				this.dos.close();
+				this.socket.close();
+			}catch(IOException e){
+				e.printStackTrace();
 			}
 		}
+	}
+
+	private static void printUsage(){
+		System.err.println("Echo server requires 1 argument: <Listen Port>");
 	}
 }
