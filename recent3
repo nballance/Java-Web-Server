@@ -15,26 +15,28 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
-
-
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
+import java.nio.file.Files;
 public class PartialHTTP1Server{
 
-	
 	public static void main(String[] args){
-		
+
 		if(args.length < 1){
 			// give user error message
 			System.exit(1);
 		}
-		
+
 		Socket socket = null;
 		ServerSocket server = null;
 		DataInputStream dis = null;
 		DataOutputStream dos = null;
-		
+
 		int port = -1;
-		
+
 		try{
 			port = Integer.parseInt(args[0]);
 		}catch(NumberFormatException nfe){
@@ -79,8 +81,8 @@ public class PartialHTTP1Server{
 		catch(IOException i) {
 
 		}
-		
-		
+
+
 		//final PartialHTTP1Server server = new PartialHTTP1Server(port);
 
 
@@ -91,21 +93,19 @@ public class PartialHTTP1Server{
 
 	public static String handleUserInput(String input) {
 		String response = "Default output";
-		
+
 		String command = null, resource = null, httpVersion = null;
-		
+
 		List<String> tokens = new ArrayList();
 		StringTokenizer tokenizer = new StringTokenizer(input, " ");
-		
-		
+
+
 		while (tokenizer.hasMoreElements()) {
 			tokens.add(tokenizer.nextToken());
 		}
 
 		//Check number of tokesn
-		if(tokenizer.countTokens() != 3){
-			System.out.println("didn't get Three tokens, got: " + tokens.size());
-
+		if(tokens.size() != 3){
 			response = "HTTP/1.0 400 Bad Request";
 			return response;
 		}
@@ -119,35 +119,32 @@ public class PartialHTTP1Server{
 		 * Supported commands are GET, POST, and HEAD
 		 * Unsupported commands are DELETE, PUT, LINK, and UNLINK
 		 */
-
+		boolean sendPayload = false;
 		switch(command) {
 		case "GET":
-			System.out.println("GET command");
+			sendPayload = true;
 			break;
 		case "POST":
-			System.out.println("POST command");
+			sendPayload = true;
 			break;
 		case "HEAD":
-			System.out.println("HEAD command");
 			break;
 		case "DELETE":
-			System.out.println("DELETE command");
 			response = "HTTP/1.0 501 Not Implemented";
-			break;
+			return response;
 		case "PUT":
-			System.out.println("PUT command");
 			response = "HTTP/1.0 501 Not Implemented";
-			break;
+			return response;
 		case "LINK":
-			System.out.println("LINK command");
 			response = "HTTP/1.0 501 Not Implemented";
-			break;
+			return response;
 		case "UNLINK":
-			System.out.println("UNLINK command");
 			response = "HTTP/1.0 501 Not Implemented";
-			break;
+			return response;
+
 		default:
-			System.out.println("HTTP/1.0 Bad Request");
+			response = "HTTP/1.0 400 Bad Request";
+			return response;
 		}
 		/*
 		 * Handle resource
@@ -156,25 +153,101 @@ public class PartialHTTP1Server{
 		/*
 		 * Handle httpVersion
 		 */
+		File file;
+		try{
+			file = new File("./" + resource);
+
+		}catch(Exception e){
+			e.printStackTrace();
+			response = "HTTP/1.0 404 Not Found";
+			return response;
+		}
+
+		if(!file.exists()){
+			response = "HTTP/1.0 404 Not Found";
+			return response;
+                }if(!file.canRead()){
+			response = "HTTP/1.0 403 Forbidden";
+			return response;
+		}
+
+		//does the file exist
 
 		int minimumLength = 8;
-
+		//System.out.println("http length: " + httpVersion.length());
 		if(httpVersion.length() >= minimumLength) {
 			if(httpVersion.substring(0, 5).equals("HTTP/")) {
+				double versionNumber;
 				try{
-					double versionNumber = Double.parseDouble(httpVersion.substring(5));
+					versionNumber = Double.parseDouble(httpVersion.substring(5));
 				}catch(NumberFormatException nfe){
 					System.err.println("Bad Format");
-					response = "HTTP/1.0 Bad Request";
+					response = "HTTP/1.0 400 Bad Request";
+					return response;
 				}
 				if(versionNumber <= 1.0) {
 
 				}else {
 					response = "HTTP/1.0 505 HTTP Version Not Supported";
+					return response;
 				}
 			}
 		}
 
+		int typeIndex = resource.indexOf(".");
+		String extension = resource.substring(typeIndex+1);
+        	String content_type = "";
+		System.out.println("extension: " + extension);
+        	switch(extension) {
+        		case "html":
+			case "plain":
+            			content_type = "text";
+            			break;
+        		case "gif":
+			case "jpeg":
+			case "png":
+            			content_type = "image";
+            			break;
+        		case "octet-stream":
+			case "pdf":
+			case "x-gzip":
+			case "zip":
+            			content_type = "application";
+        		default:
+				response = "HTTP/1.0 400 Bad Request";
+				return response;
+        	}
+		String combined_content_type = (content_type + "/" + extension);
+		long content_length = file.length();
+		long last_modified = file.lastModified();
+
+		//Date date = new Date(TimeUnit.SECONDS.toMillis(last_modified));
+		//Date date = new Date(last_modified * 1000);
+		//Date date = new Date(last_modified);
+
+		DateFormat df = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
+		df.setTimeZone(TimeZone.getTimeZone("GMT"));
+		//System.out.println("Current date and time in GMT: " + df.format(now));
+
+		//df.setTimeZone(TimeZone.getTimeZone("IST"));
+		//System.out.println("Current date and time in IST: " + df.format(now));
+
+		response = "HTTP/1.0 200 OK\r\n"+
+				"Content-Type: " + combined_content_type + "\r\n" +
+				"Content-Length: " + content_length + "\r\n" +
+				"Last-Modified: " + df.format(last_modified) + "\r\n" +
+				"Content-Encoding: identity\r\n" +
+				"Allow: GET, POST, HEAD\r\n"  +
+				"Expires: Sat, 21 Jul 2021 11:00:00 GMT\r\n";
+		if(sendPayload){
+			try{
+			byte[] fileContent = readFileToByteArray(file);
+			response += "\r\n" + fileContent;
+			}catch(IOException ioe){
+				//
+			}
+		}
+		System.out.println(response);
 		return response;
 	}
 
@@ -198,8 +271,16 @@ public class PartialHTTP1Server{
 				String input = userInput.readLine();
 				String response = handleUserInput(input);
 
+				dos.writeBytes(response);
+				dos.flush();
+
 			}catch(SocketTimeoutException ste){
 				System.err.println("timed out!");
+				try{
+					dos.writeBytes("HTTP/1.0 408 Request Timeout");
+				}catch(IOException ioe2){
+					//
+				}
 			}catch(IOException ioe){
 				System.err.println("BufferedReader fail");
 			}
