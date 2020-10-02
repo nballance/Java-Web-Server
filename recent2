@@ -1,58 +1,184 @@
-import java.net.*;
-import java.io.*;
-import java.util.*;
+import java.io.BufferedReader;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.StringTokenizer;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 
-public class PartialHTTP1Server {
 
-	public static void main(String args[]){
+public class PartialHTTP1Server{
 
-		//initialize socket and input stream
-		private Socket socket = null;
-		private ServerSocket server = null;
-		private DataInputStream din = null;
-		private DataOutputStream dos = null;
-
-		private ArrayList<Thread> thread_ids = new ArrayList<Thread>(50);
-
+	
+	public static void main(String[] args){
+		
+		if(args.length < 1){
+			// give user error message
+			System.exit(1);
+		}
+		
+		Socket socket = null;
+		ServerSocket server = null;
+		DataInputStream dis = null;
+		DataOutputStream dos = null;
+		
+		int port = -1;
+		
 		try{
-			server = new ServerSocket(Integer.parseInt(args[0]));
-			System.out.println("Server started");
+			port = Integer.parseInt(args[0]);
+		}catch(NumberFormatException nfe){
+			System.err.print("Integer values only");
+			System.exit(1);
+		}
+		if(port <= 0 || port > 65536){
+			System.err.print("Integer out of bounds");
+			System.exit(1);
+		}
 
+		
+		try {
+			server = new ServerSocket(port);
+			
+			System.out.println("Server started");
 			System.out.println("Waiting for a client ...");
 
-			while(true){
-				//Accept blocking call
+			ExecutorService threadPool = null;
+
+			while(true) {
 				socket = server.accept();
-
+				
 				System.out.println("Client accepted");
-
+				
 				// setting input and output streams
-				din = new DataInputStream(socket.getInputStream());
+				dis = new DataInputStream(socket.getInputStream());
 				dos = new DataOutputStream(socket.getOutputStream());
 
-				System.out.println("Assigning new thread for this client");
-
-				thread_ids.add(new ClientHandler(socket, dis, dos));
-
+				threadPool = new ThreadPoolExecutor(5, 50, 5000, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(1));
+				threadPool.execute(new ClientHandler(socket, dis, dos));
+				
+				
+				
 			}
-
-			System.out.println("Stopping Accept...");
-
-			// close connection
-			socket.close();
-			din.close();
-			dos.close();
-
-		}catch(IOException i){
-			System.out.println(i);
+		}catch(IOException i) {
+			
 		}
+		
+		
+		//final PartialHTTP1Server server = new PartialHTTP1Server(port);
+
+
+		//server.start();
+
+
 	}
 
-	class ClientHandler extends Thread{
-		final DataInputStream dis;
-		final DataOutputStream dos;
-		final Socket socket;
+	public static String handleUserInput(String input) {
+		
+		String response = "Default output";
+		
+		String command = null, resource = null, httpVersion = null;
+		
+		List<String> tokens = new ArrayList();
+		StringTokenizer tokenizer = new StringTokenizer(input, " ");
+		
+		
+		while (tokenizer.hasMoreElements()) {
+			tokens.add(tokenizer.nextToken());
+		}
+
+		//Check number of tokesn
+		
+		try{
+			command = tokenizer.nextElement().toString();
+		}catch(NullPointerException e){
+			System.err.print("No command entered");
+			response = "400 Bad Request";
+			return response;
+		}
+		try {
+			resource = tokenizer.nextElement().toString();
+		}catch(NullPointerException e) {
+			System.err.print("No resource entered");
+		}
+		try {
+			httpVersion = tokenizer.nextElement().toString();
+		}catch(NullPointerException e) {
+			System.err.print("No httpVersion entered");
+		}
+		
+		/*
+		 * Handle http command
+		 * Supported commands are GET, POST, and HEAD
+		 * Unsupported commands are DELETE, PUT, LINK, and UNLINK
+		 */
+		switch(command) {
+		case "GET":
+			System.out.println("GET command");
+			break;
+		case "POST":
+			System.out.println("POST command");
+			break;
+		case "HEAD":
+			System.out.println("HEAD command");
+			break;
+		case "DELETE":
+			System.out.println("DELETE command");
+			response = "501 Not Implemented";
+			break;
+		case "PUT":
+			System.out.println("PUT command");
+			response = "501 Not Implemented";
+			break;
+		case "LINK":
+			System.out.println("LINK command");
+			response = "501 Not Implemented";
+			break;
+		case "UNLINK":
+			System.out.println("UNLINK command");
+			response = "501 Not Implemented";
+			break;
+		default:
+			System.out.println("Unsupported command");
+		}
+		
+		/*
+		 * Handle resource
+		 */
+		
+		/*
+		 * Handle httpVersion
+		 */
+		int minimumLength = 8;
+		
+		if(httpVersion.length() >= minimumLength) {
+			if(httpVersion.substring(0, 5).equals("HTTP/")) {
+				double versionNumber = Double.parseDouble(httpVersion.substring(5));
+				if(versionNumber <= 1.0) {
+					
+				}else {
+					response = "505 HTTP Version Not Supported";
+				}
+			}
+		}
+		
+		return response;
+	}
+
+	public static class ClientHandler implements Runnable{
+		Socket socket;
+		DataInputStream dis;
+		DataOutputStream dos;
 
 		public ClientHandler(Socket socket, DataInputStream dis, DataOutputStream dos){
 			this.socket = socket;
@@ -62,19 +188,40 @@ public class PartialHTTP1Server {
 
 		@Override
 		public void run(){
-		//Does something
-		}
-
-		//terminate the thread:
-
-		try{
-			this.dis.close();
-			this.dos.close();
-			this.socket.close();
-
-		}catch(IOException e){
-			e.printStackTrace();
+			try{
+				BufferedReader userInput = new BufferedReader(new InputStreamReader(dis));
+				
+				String input = userInput.readLine();
+				
+				String response = handleUserInput(input);
+				
+				
+				
+				
+//TODO
+				/*
+				while(input != "\n\n") {
+					input = userInput.readLine();
+					//check for request format
+				}
+				*/		
+				
+				
+			}catch(IOException ioe){
+				System.err.println("BufferedReader fail");
+			}
+			
+			try{
+				this.dis.close();
+				this.dos.close();
+				this.socket.close();
+			}catch(IOException e){
+				e.printStackTrace();
+			}
 		}
 	}
 
+	private static void printUsage(){
+		System.err.println("Echo server requires 1 argument: <Listen Port>");
+	}
 }
