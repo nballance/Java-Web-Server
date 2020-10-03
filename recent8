@@ -1,0 +1,362 @@
+import java.io.BufferedReader;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.StringTokenizer;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
+import java.nio.file.Files;
+import java.nio.file.attribute.DosFileAttributes;
+import java.util.Scanner;
+import java.util.Date;
+import java.text.ParseException;
+
+public class PartialHTTP1Server{
+
+	public static void main(String[] args){
+		boolean payload_sent = false;
+		if(args.length < 1){
+			// give user error message
+			System.exit(1);
+		}
+
+		Socket socket = null;
+		ServerSocket server = null;
+		DataInputStream dis = null;
+		DataOutputStream dos = null;
+
+		int port = -1;
+
+		try{
+			port = Integer.parseInt(args[0]);
+		}catch(NumberFormatException nfe){
+			System.err.print("Integer values only");
+			System.exit(1);
+		}
+		if(port <= 0 || port > 65536){
+			System.err.print("Integer out of bounds");
+			System.exit(1);
+		}
+
+		try {
+			server = new ServerSocket(port);
+
+			System.out.println("Server started");
+			System.out.println("Waiting for a client ...");
+
+			ExecutorService threadPool = null;
+
+			while(true) {
+				socket = server.accept();
+
+				System.out.println("Client accepted");
+				// setting input and output streams
+				dis = new DataInputStream(socket.getInputStream());
+				dos = new DataOutputStream(socket.getOutputStream());
+
+				threadPool = new ThreadPoolExecutor(5, 50, 5000, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(1));
+
+				//try{
+					//socket.setSoTimeout(5000);
+					threadPool.execute(new ClientHandler(socket, dis, dos));
+				//}catch(SocketTimeoutException ste){
+				//	System.err.println("time out!");
+				//}
+			}
+		}//catch(SocketTimeoutException ste){
+		//	System.err.println("time out!");
+		//}
+		catch(IOException i) {
+
+		}
+
+
+		//final PartialHTTP1Server server = new PartialHTTP1Server(port);
+
+
+		//server.start();
+
+
+	}
+
+	public static byte[] handleUserInput(String input) {
+		byte[] response = ("Default output").getBytes();
+
+		String command = null, resource = null, httpVersion = null;
+
+		List<String> tokens = new ArrayList();
+		StringTokenizer tokenizer = new StringTokenizer(input, " ");
+
+		while (tokenizer.hasMoreElements()) {
+			tokens.add(tokenizer.nextToken());
+		}
+
+		//Check number of tokesn
+		if(tokens.size() < 3){
+			response = ("HTTP/1.0 400 Bad Request").getBytes();
+			return response;
+		}
+
+		command = tokens.get(0);
+		resource = tokens.get(1);
+		httpVersion = tokens.get(2);
+
+		/*
+		 * Handle http command
+		 * Supported commands are GET, POST, and HEAD
+		 * Unsupported commands are DELETE, PUT, LINK, and UNLINK
+		 */
+		boolean sendPayload = false;
+		switch(command) {
+		case "GET":
+			sendPayload = true;
+			break;
+		case "POST":
+			sendPayload = true;
+			break;
+		case "HEAD":
+			break;
+		case "DELETE":
+			response = ("HTTP/1.0 501 Not Implemented").getBytes();
+			return response;
+		case "PUT":
+			response = ("HTTP/1.0 501 Not Implemented").getBytes();
+			return response;
+		case "LINK":
+			response = ("HTTP/1.0 501 Not Implemented").getBytes();
+			return response;
+		case "UNLINK":
+			response = ("HTTP/1.0 501 Not Implemented").getBytes();
+			return response;
+
+		default:
+			response = ("HTTP/1.0 400 Bad Request").getBytes();
+			return response;
+		}
+		/*
+		 * Handle resource
+		 */
+
+		/*
+		 * Handle httpVersion
+		 */
+		int minimumLength = 8;
+		if(httpVersion.length() >= minimumLength) {
+			if(httpVersion.substring(0, 5).equals("HTTP/")) {
+				double versionNumber;
+				try{
+					versionNumber = Double.parseDouble(httpVersion.substring(5));
+				}catch(NumberFormatException nfe){
+					System.err.println("Bad Format");
+					response = ("HTTP/1.0 400 Bad Request").getBytes();
+					return response;
+				}
+				if(versionNumber <= 1.0) {
+
+				}else {
+					response = ("HTTP/1.0 505 HTTP Version Not Supported").getBytes();
+					return response;
+				}
+			}
+		}else{
+			response = ("HTTP/1.0 400 Bad Request").getBytes();
+                        return response;
+		}
+
+		File file;
+		try{
+			file = new File("." + resource);
+
+		}catch(Exception e){
+			e.printStackTrace();
+			response = ("HTTP/1.0 404 Not Found").getBytes();
+			return response;
+		}
+
+		if(!file.exists()){
+			response = ("HTTP/1.0 404 Not Found").getBytes();
+			return response;
+                }if(!file.canRead()){
+			response = ("HTTP/1.0 403 Forbidden").getBytes();
+			return response;
+		}
+		//does the file exist
+
+
+		int typeIndex = resource.indexOf(".");
+
+		String extension = resource.substring(typeIndex+1);
+		if(typeIndex == -1){
+			extension = "";
+		}
+        	String content_type = "";
+
+        	switch(extension) {
+        		case "html":
+			case "plain":
+            			content_type = "text";
+            			break;
+
+        		case "gif":
+			case "jpeg":
+			case "png":
+            			content_type = "image";
+				break;
+
+        		case "":
+				extension = "octet-stream";
+			case "pdf":
+			case "x-gzip":
+			case "zip":
+            			content_type = "application";
+				break;
+
+        		default:
+				response = ("HTTP/1.0 400 Bad Request").getBytes();
+				return response;
+        	}
+
+		String combined_content_type = (content_type + "/" + extension);
+		long content_length = file.length();
+		long last_modified = file.lastModified();
+		String last_modified_str = "";
+
+		DateFormat df = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
+		df.setTimeZone(TimeZone.getTimeZone("GMT"));
+		String date_given = "";
+		Date date1 = null;
+		Date date2 = null;
+		if(tokens.size() == 10){
+			for(int i = 4; i <= tokens.size()-1; i++){
+				date_given += tokens.get(i) + " ";
+			}
+			date_given = date_given.substring(0, date_given.length() - 1);
+			last_modified_str = df.format(last_modified);
+			try{
+				date1 = df.parse(date_given);
+				date2 = df.parse(last_modified_str);
+			}catch(ParseException pe){
+				//
+			}
+
+		}if(date1!= null && date2 != null && sendPayload && date1.compareTo(date2) > 0){
+			response = ("HTTP/1.0 304 Not Modified\r\nExpires: Sat, 21 Jul 2021 11:00:00 GMT\r\n\r\n").getBytes();
+			return response;
+		}
+		response = ("HTTP/1.0 200 OK\r\n"+
+				"Content-Type: " + combined_content_type + "\r\n" +
+				"Content-Length: " + content_length + "\r\n" +
+				"Last-Modified: " + df.format(last_modified) + "\r\n" +
+				"Content-Encoding: identity\r\n" +
+				"Allow: GET, POST, HEAD\r\n"  +
+				"Expires: Sat, 21 Jul 2021 11:00:00 GMT\r\n\r\n").getBytes();
+
+	    FileInputStream fileInputStream = null;
+	      byte[] bFile = new byte[(int) file.length()];
+	      try
+	      {
+	         //convert file into array of bytes
+	         fileInputStream = new FileInputStream(file);
+	         fileInputStream.read(bFile);
+	         fileInputStream.close();
+	         //for (int i = 0; i < bFile.length; i++)
+	         //{
+	          //  System.out.print((char) bFile[i]);
+	         //}
+	      }
+	      catch (Exception e)
+	      {
+	         e.printStackTrace();
+	      }
+
+	      byte[] one = response;
+	      byte[] two = bFile;
+	      byte[] combined = new byte[one.length + two.length];
+
+	      for (int i = 0; i < combined.length; ++i)
+	      {
+	          combined[i] = i < one.length ? one[i] : two[i - one.length];
+	      }
+	      String newline = "\r\n";
+	      byte[] newL = (newline).getBytes();
+	      byte[] v1 = combined;
+	      byte[] v2 = newL;
+	      byte[] v3 = new byte[v1.length + v2.length];
+
+	      for (int i = 0; i < v3.length; ++i)
+	      {
+	          v3[i] = i < v1.length ? v1[i] : v2[i - v1.length];
+	      }
+
+
+		return v3;
+	}
+
+	public static class ClientHandler implements Runnable{
+		Socket socket;
+		DataInputStream dis;
+		DataOutputStream dos;
+		ClientHandler(Socket socket, DataInputStream dis, DataOutputStream dos){
+			this.socket = socket;
+			this.dis = dis;
+			this.dos = dos;
+		}
+
+		@Override
+		public void run(){
+			try{
+				BufferedReader userInput = new BufferedReader(new InputStreamReader(dis));
+
+				this.socket.setSoTimeout(5000);
+				String str = "";
+				String input = "";
+				while((str=userInput.readLine()) != null && str.length() != 0){
+					input+= str + " ";
+				}
+				byte[] response = handleUserInput(input);
+
+				dos.write(response);
+				dos.flush();
+
+			}catch(SocketTimeoutException ste){
+				System.err.println("timed out!");
+				try{
+					dos.writeBytes("HTTP/1.0 408 Request Timeout");
+					dos.flush();
+				}catch(IOException ioe2){
+					//
+				}
+			}catch(IOException ioe){
+				System.err.println("BufferedReader fail");
+			}
+
+			try{
+				this.dis.close();
+				this.dos.close();
+				this.socket.close();
+			}catch(IOException e){
+				e.printStackTrace();
+			}
+		}
+	}
+
+	private static void printUsage(){
+		System.err.println("Echo server requires 1 argument: <Listen Port>");
+	}
+}
